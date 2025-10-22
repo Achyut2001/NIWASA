@@ -50,6 +50,17 @@ public final class Constants {
     public static final String Fetching_properties_with_status= "Fetching properties with status: {}";
     public static final String No_properties_Found= "No properties found with status: {}";
     public static final String properties_Found= " properties found with status: {}";
+    public static final String LOG_START_PROCESS_EXCEL = "Starting processExcelFile() with file: {}";
+    public static final String LOG_SHEET_COUNT = "Workbook has {} sheets";
+    public static final String LOG_PROCESSING_SHEET = "Processing sheet: {}";
+    public static final String LOG_ROW_PROCESSED = "Processed row {} successfully";
+    public static final String LOG_START_CONVERT_PROPERTY = "Starting convertToProperty() for PropertyId: {}";
+    public static final String LOG_END_CONVERT_PROPERTY = "Completed convertToProperty() for PropertyId: {}";
+    public static final String LOG_COLUMN_INDEX_REASON = "ColumnIndex: {}, Reason: {}";
+    public static final String Stared_processExcelUpload_ForFile = "Started processExcelUpload() for file: {} by user: {}";
+
+    public static final String STATUS_PENDING = "PENDING";
+    public static final String  f = "PENDING";
 
 
     private Constants() {

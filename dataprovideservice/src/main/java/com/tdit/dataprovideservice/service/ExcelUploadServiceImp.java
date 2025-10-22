@@ -30,7 +30,8 @@ public class ExcelUploadServiceImp implements ExcelUploadServiceInterface {
 
     @Transactional
     public ExcelUploadResponse processExcelUpload(MultipartFile file, String uploadedBy) {
-
+        log.info(Stared_processExcelUpload_ForFile,
+                file.getOriginalFilename(), uploadedBy);
         UploadAudit audit = UploadAudit.builder()
                 .fileName(file.getOriginalFilename())
                 .uploadedBy(uploadedBy)
@@ -72,8 +73,10 @@ public class ExcelUploadServiceImp implements ExcelUploadServiceInterface {
                 rowResults.put(rowNumber, validationResult);
 
                 if (validationResult.isSuccess()) {
+
                     try {
                         Property property = excelProcessorService.convertToProperty(rowData);
+                        log.info("Converted property from row {}: {}", rowNumber, property);
                         log.info("property data: {}", property);
                         validProperties.add(property);
                         successRows++;
@@ -118,17 +121,18 @@ public class ExcelUploadServiceImp implements ExcelUploadServiceInterface {
                             totalRows, successRows, failedRows, warningRows))
                     .build();
 
+
+
         } catch (Exception e) {
             log.error(ERROR_PROCESSING_EXCEL_FILE, e.getMessage(), e);
-
             audit.setStatus(UploadAudit.UploadStatus.FAILED);
             uploadAuditRepository.save(audit);
-
             throw new ExcelProcessingException(ERROR_PROCESSING_EXCEL_FILE + e.getMessage());
         }
     }
 
     public UploadAudit getUploadStatus(UUID uploadId) {
+        log.info("Started getUploadStatus() for uploadId: {}", uploadId);
         return uploadAuditRepository.findById(uploadId)
                 .orElseThrow(() -> new UploadNotFoundException(UPLOAD_NOT_FOUND + uploadId));
     }

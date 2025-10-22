@@ -12,14 +12,14 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
+import java.util.*;
 
 import static com.tdit.dataprovideservice.constants.Constants.*;
+
 @Slf4j
 @Service
 public class ExcelProcessorServiceIml implements ExcelProcessorServiceInterface {
@@ -28,14 +28,36 @@ public class ExcelProcessorServiceIml implements ExcelProcessorServiceInterface 
 
     @Override
     public List<ExcelRowData> processExcelFile(MultipartFile file) throws IOException {
+        log.info(LOG_START_PROCESS_EXCEL, file.getOriginalFilename());
+
+
+        if (file.isEmpty()) {
+            log.error(ERROR_FILE_EMPTY);
+            throw new IllegalArgumentException(ERROR_FILE_EMPTY);
+        }
+
+
+        String contentType = file.getContentType();
+        log.info("Uploaded file content type: {}", contentType);
+
+        if (!("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".equals(contentType)
+                || "application/vnd.ms-excel".equals(contentType))) {
+            log.error(ERROR_FILE_TYPE);
+            throw new IllegalArgumentException(ERROR_FILE_TYPE);
+        }
+
+
         List<ExcelRowData> rows = new ArrayList<>();
 
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
             int sheets = workbook.getNumberOfSheets();
+            log.info(LOG_SHEET_COUNT, sheets);
 
             for (int i = 0; i < sheets; i++) {
                 Sheet sheet = workbook.getSheetAt(i);
                 if (sheet == null) continue;
+
+                log.info(LOG_PROCESSING_SHEET, sheet.getSheetName());
 
                 for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                     Row row = sheet.getRow(rowIndex);
@@ -44,20 +66,28 @@ public class ExcelProcessorServiceIml implements ExcelProcessorServiceInterface 
                     try {
                         ExcelRowData rowData = extractRowData(row);
                         rows.add(rowData);
+                        log.debug(LOG_ROW_PROCESSED, rowIndex);
                     } catch (Exception e) {
-                        log.warn("Error processing row {}: {}", rowIndex, e.getMessage());
-                        ExcelRowData emptyRow = new ExcelRowData();
-                        rows.add(emptyRow);
+                        log.warn(LOG_COLUMN_INDEX_REASON, rowIndex, e.getMessage());
+                        rows.add(new ExcelRowData());
                     }
                 }
             }
+
+            log.info(MESSAGE_TEMPLATE, rows.size(), rows.size(), 0, 0);
+            log.info("Successfully processed {} rows from file: {}", rows.size(), file.getOriginalFilename());
+
+        } catch (Exception e) {
+            log.error("{} {}", ERROR_PROCESSING_EXCEL_FILE, e.getMessage());
+            throw e;
         }
 
         return rows;
     }
 
+
     private ExcelRowData extractRowData(Row row) {
-        ExcelRowData data = new ExcelRowData();
+        var data = new ExcelRowData();
 
         data.setPropertyId(parseCellToString(row.getCell(0)));
         data.setPropertyTitle(parseCellToString(row.getCell(1)));
@@ -102,6 +132,7 @@ public class ExcelProcessorServiceIml implements ExcelProcessorServiceInterface 
                 default -> null;
             };
         } catch (Exception e) {
+            log.debug(LOG_COLUMN_INDEX_REASON, ERROR_ROW_EXTRACTION, cell.getColumnIndex(), e.getMessage());
             return null;
         }
     }
@@ -121,7 +152,9 @@ public class ExcelProcessorServiceIml implements ExcelProcessorServiceInterface 
 
     @Override
     public Property convertToProperty(ExcelRowData rowData) {
-        Property property = new Property();
+        log.info(LOG_START_CONVERT_PROPERTY, rowData.getPropertyId());
+
+        var property = new Property();
 
         parseLongSafe(rowData.getPropertyId(), INVALID_PROPERTY_ID, property::setPropertyId);
         property.setPropertyTitle(rowData.getPropertyTitle());
@@ -157,27 +190,28 @@ public class ExcelProcessorServiceIml implements ExcelProcessorServiceInterface 
             property.setStatus(rowData.getStatus().name());
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        if (rowData.getCreatedAt() != null && !rowData.getCreatedAt().trim().isEmpty()) {
+        var now = LocalDateTime.now();
+        if (rowData.getCreatedAt() != null && !rowData.getCreatedAt().isBlank()) {
             try {
                 property.setCreatedAt(LocalDateTime.parse(rowData.getCreatedAt(), DATE_FORMATTER));
             } catch (Exception e) {
-                throw new InvalidDateFormatException(created_At, rowData.getCreatedAt(), e);
+                throw new InvalidDateFormatException(Invalid_date_format_for_field + created_At, rowData.getCreatedAt(), e);
             }
         } else {
             property.setCreatedAt(now);
         }
         property.setUpdatedAt(now);
 
+        log.info(LOG_END_CONVERT_PROPERTY, rowData.getPropertyId());
         return property;
     }
 
     private void parseLongSafe(String value, String logMessage, java.util.function.Consumer<Long> setter) {
-        if (value != null && !value.trim().isEmpty()) {
+        if (value != null && !value.isBlank()) {
             try {
                 setter.accept(Long.parseLong(value));
             } catch (NumberFormatException e) {
-                log.warn("{}: {}", logMessage, value);
+                log.warn(logMessage, value);
                 setter.accept(null);
             }
         } else {
@@ -185,9 +219,8 @@ public class ExcelProcessorServiceIml implements ExcelProcessorServiceInterface 
         }
     }
 
-
-    private void parseDoubleSafe(String value, String logMessage, Consumer<Double> setter) {
-        if (value != null && !value.trim().isEmpty()) {
+    private void parseDoubleSafe(String value, String logMessage, java.util.function.Consumer<Double> setter) {
+        if (value != null && !value.isBlank()) {
             try {
                 setter.accept(Double.parseDouble(value));
             } catch (Exception e) {
@@ -196,8 +229,8 @@ public class ExcelProcessorServiceIml implements ExcelProcessorServiceInterface 
         }
     }
 
-    private void parseDoubleStrict(String value, String errorMessage, Consumer<Double> setter) {
-        if (value != null && !value.trim().isEmpty()) {
+    private void parseDoubleStrict(String value, String errorMessage, java.util.function.Consumer<Double> setter) {
+        if (value != null && !value.isBlank()) {
             try {
                 setter.accept(Double.parseDouble(value));
             } catch (Exception e) {
